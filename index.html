@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>制服ARカメラ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+    .header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 10;
+      background: rgba(30,30,60,0.7);
+      backdrop-filter: blur(8px);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .header .title {
+      font-size: 1.2rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header .title i { color: #ffd700; font-size: 1.3em; }
+    .header .status {
+      font-size: 0.95em;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      opacity: 0.85;
+    }
+    .header .status-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: #4caf50; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%{opacity:1;} 50%{opacity:0.5;} 100%{opacity:1;} }
+    #canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: #222;
+      touch-action: none;
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 1;
+    }
+    #controls {
+      position: fixed;
+      left: 50%;
+      bottom: 32px;
+      transform: translateX(-50%);
+      z-index: 20;
+      background: rgba(30,30,60,0.7);
+      backdrop-filter: blur(8px);
+      border-radius: 18px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      padding: 18px 28px 14px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.98em;
+      opacity: 0.92;
+    }
+    #scaleSlider {
+      width: 160px;
+      accent-color: #ffd700;
+    }
+    .btns {
+      display: flex;
+      gap: 18px;
+      margin-top: 6px;
+    }
+    .btn {
+      border: none;
+      border-radius: 50%;
+      width: 62px; height: 62px;
+      background: linear-gradient(135deg, #ff6b6b 0%, #ffd93d 100%);
+      color: #fff;
+      font-size: 1.5em;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn:active { transform: scale(0.96); }
+    #toggleBtn {
+      background: linear-gradient(135deg, #44a8c7 0%, #4ecdc4 100%);
+      font-size: 1.1em;
+      width: auto; height: 44px; border-radius: 22px;
+      padding: 0 18px;
+      margin-left: 8px;
+      display: flex; align-items: center; gap: 8px;
+      min-width: 120px;
+    }
+    #toggleBtn i { font-size: 1.1em; }
+    @media (max-width: 600px) {
+      #controls { padding: 10px 8vw 8px 8vw; }
+      #scaleSlider { width: 100px; }
+      .btn { width: 48px; height: 48px; font-size: 1.1em; }
+      #toggleBtn { height: 36px; font-size: 0.95em; min-width: 90px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title"><i class="fa-solid fa-camera-retro"></i>制服ARカメラ</div>
+    <div class="status"><span class="status-dot" id="statusDot"></span><span id="statusText">カメラ準備中</span></div>
+  </div>
+  <video id="video" autoplay playsinline muted style="display:none"></video>
+  <canvas id="canvas"></canvas>
+  <div id="controls">
+    <div class="slider-wrap">
+      <i class="fa-solid fa-arrows-up-down-left-right"></i> サイズ調整
+      <input type="range" id="scaleSlider" min="0.5" max="2" step="0.01" value="1">
+    </div>
+    <div class="btns">
+      <button class="btn" id="captureBtn" title="写真を保存"><i class="fa-solid fa-camera"></i></button>
+      <button id="toggleBtn"><i class="fa-solid fa-mars"></i><span>男子制服に切り替え</span></button>
+    </div>
+  </div>
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const scaleSlider = document.getElementById("scaleSlider");
+    const captureBtn = document.getElementById("captureBtn");
+    const toggleBtn = document.getElementById("toggleBtn");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    let overlayImg = new Image();
+    let uniformType = "girl";
+    overlayImg.src = "girl.png";
+    let overlayX = 0, overlayY = 0, scale = 1, isDragging = false, dragOffsetX = 0, dragOffsetY = 0;
+    function centerOverlay() {
+      const imgWidth = overlayImg.width * scale;
+      const imgHeight = overlayImg.height * scale;
+      overlayX = (canvas.width - imgWidth) / 2;
+      overlayY = (canvas.height - imgHeight) / 2;
+    }
+    function setupCamera() {
+      statusText.textContent = "カメラ起動中...";
+      statusDot.style.background = "#ff9800";
+      const constraints = { video: { facingMode: { ideal: "environment" } } };
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then(stream => {
+          video.srcObject = stream;
+          function setCanvasSize() {
+            if (video.videoWidth && video.videoHeight) {
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              overlayImg.onload = centerOverlay;
+              centerOverlay();
+              statusText.textContent = "カメラ準備完了";
+              statusDot.style.background = "#4caf50";
+              draw();
+            }
+          }
+          video.onloadedmetadata = setCanvasSize;
+          video.oncanplay = setCanvasSize;
+        })
+        .catch(err => {
+          statusText.textContent = "カメラエラー";
+          statusDot.style.background = "#f44336";
+          alert("カメラの使用許可が必要です。Safariの設定もご確認ください。\n" + err);
+        });
+    }
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      if (overlayImg.complete && overlayImg.naturalWidth > 0) {
+        const imgWidth = overlayImg.width * scale;
+        const imgHeight = overlayImg.height * scale;
+        ctx.drawImage(overlayImg, overlayX, overlayY, imgWidth, imgHeight);
+      }
+      requestAnimationFrame(draw);
+    }
+    scaleSlider.addEventListener("input", () => {
+      scale = parseFloat(scaleSlider.value);
+    });
+    function isOnOverlay(x, y) {
+      const imgWidth = overlayImg.width * scale;
+      const imgHeight = overlayImg.height * scale;
+      return x >= overlayX && x <= overlayX + imgWidth && y >= overlayY && y <= overlayY + imgHeight;
+    }
+    // Pointer & Touch両対応
+    function getPointerPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches) {
+        return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+      } else {
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      }
+    }
+    function startDrag(e) {
+      const { x, y } = getPointerPos(e);
+      if (isOnOverlay(x, y)) {
+        isDragging = true;
+        dragOffsetX = x - overlayX;
+        dragOffsetY = y - overlayY;
+        e.preventDefault();
+      }
+    }
+    function moveDrag(e) {
+      if (isDragging) {
+        const { x, y } = getPointerPos(e);
+        overlayX = x - dragOffsetX;
+        overlayY = y - dragOffsetY;
+        e.preventDefault();
+      }
+    }
+    function endDrag() { isDragging = false; }
+    canvas.addEventListener("pointerdown", startDrag);
+    canvas.addEventListener("pointermove", moveDrag);
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+    canvas.addEventListener("touchstart", startDrag, { passive: false });
+    canvas.addEventListener("touchmove", moveDrag, { passive: false });
+    canvas.addEventListener("touchend", endDrag);
+    canvas.addEventListener("touchcancel", endDrag);
+    captureBtn.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = "制服ARショット.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+    toggleBtn.addEventListener("click", () => {
+      uniformType = uniformType === "girl" ? "boy" : "girl";
+      overlayImg.src = uniformType === "girl" ? "girl.png" : "boy.png";
+      const icon = toggleBtn.querySelector("i");
+      const text = toggleBtn.querySelector("span");
+      if (uniformType === "girl") {
+        icon.className = "fa-solid fa-mars";
+        text.textContent = "男子制服に切り替え";
+      } else {
+        icon.className = "fa-solid fa-venus";
+        text.textContent = "女子制服に切り替え";
+      }
+      overlayImg.onload = centerOverlay;
+    });
+    setupCamera();
+  </script>
+</body>
+</html> 
