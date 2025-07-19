@@ -264,6 +264,30 @@
         });
       }
       
+      // フォールバック用の仮想画像を作成
+      createFallbackImage(name) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 200;
+        canvas.height = 300;
+        const ctx = canvas.getContext('2d');
+        
+        // 背景色
+        const bgColor = name === 'girl' ? '#ff69b4' : '#4169e1';
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, 200, 300);
+        
+        // テキスト
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(name === 'girl' ? '女子制服' : '男子制服', 100, 150);
+        
+        // Canvasを画像に変換
+        const img = new Image();
+        img.src = canvas.toDataURL();
+        return img;
+      }
+      
       // 複数のパスを試す画像読み込み
       async loadImageWithFallback(name, paths) {
         for (let i = 0; i < paths.length; i++) {
@@ -273,7 +297,17 @@
           } catch (error) {
             console.warn(`パス ${paths[i]} での読み込みに失敗、次のパスを試行:`, error);
             if (i === paths.length - 1) {
-              throw error; // 最後のパスでも失敗した場合
+              // 最後のパスでも失敗した場合、フォールバック画像を作成
+              console.warn(`すべてのパスで失敗したため、フォールバック画像を作成: ${name}`);
+              const fallbackImg = this.createFallbackImage(name);
+              this.images[name] = fallbackImg;
+              this.loadedImages++;
+              
+              if (this.loadedImages === this.totalImages) {
+                console.log('すべての画像が読み込まれました（フォールバック含む）');
+                this.setCurrentImage('girl');
+              }
+              return fallbackImg;
             }
           }
         }
@@ -281,21 +315,31 @@
       
       async loadAllImages() {
         try {
-          // 複数のパスを試す
+          // 現在のURLを基準にしたパス生成
+          const currentUrl = window.location.href;
+          const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/') + 1);
+          
+          // 複数のパスを試す（Vercel対応）
           const girlPaths = [
             'girl.png',
             './girl.png',
             '/girl.png',
-            window.location.pathname.replace(/\/[^\/]*$/, '/') + 'girl.png'
+            baseUrl + 'girl.png',
+            window.location.origin + '/girl.png',
+            window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'girl.png'
           ];
           
           const boyPaths = [
             'boy.png',
             './boy.png',
             '/boy.png',
-            window.location.pathname.replace(/\/[^\/]*$/, '/') + 'boy.png'
+            baseUrl + 'boy.png',
+            window.location.origin + '/boy.png',
+            window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'boy.png'
           ];
           
+          console.log('現在のURL:', currentUrl);
+          console.log('ベースURL:', baseUrl);
           console.log('画像パスを試行:', { girlPaths, boyPaths });
           
           await Promise.all([
