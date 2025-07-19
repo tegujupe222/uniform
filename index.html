@@ -535,12 +535,13 @@
         return;
       }
       
-      // Safari対応のカメラ設定
+      // Safari対応のカメラ設定（より柔軟な設定）
       const constraints = { 
         video: { 
           facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { min: 320, ideal: 640, max: 1280 },
+          height: { min: 240, ideal: 480, max: 720 },
+          frameRate: { ideal: 30, max: 60 }
         } 
       };
       
@@ -557,63 +558,84 @@
         return;
       }
       
-      getUserMedia.call(navigator.mediaDevices || navigator, constraints)
-        .then(stream => {
-          try {
-            videoStream = stream; // グローバル変数に保存
-            video.srcObject = stream;
+      try {
+        const stream = await getUserMedia.call(navigator.mediaDevices || navigator, constraints);
+        videoStream = stream;
+        video.srcObject = stream;
+        
+        // Safariでのビデオ読み込みを確実にする
+        video.muted = true;
+        video.playsInline = true;
+        video.autoplay = true;
+        
+        console.log('ビデオストリームを設定しました');
+        
+        // 複数のイベントでCanvasサイズを設定
+        const setCanvasSize = () => {
+          if (video.videoWidth && video.videoHeight) {
+            console.log('ビデオサイズ:', video.videoWidth, 'x', video.videoHeight);
             
-            function setCanvasSize() {
-              if (video.videoWidth && video.videoHeight) {
-                // Safariでのメモリ問題を防ぐため、適切なサイズに制限
-                const maxWidth = Math.min(video.videoWidth, 1280);
-                const maxHeight = Math.min(video.videoHeight, 720);
-                
-                canvas.width = maxWidth;
-                canvas.height = maxHeight;
-                
-                console.log('Canvasサイズを設定しました:', canvas.width, 'x', canvas.height);
-                imageManager.centerOverlay();
-                statusText.textContent = "カメラ準備完了";
-                statusDot.style.background = "#4caf50";
-                
-                // Safariでのパフォーマンス向上のため、requestAnimationFrameを最適化
-                if (!window.isDrawing) {
-                  window.isDrawing = true;
-                  draw();
-                }
-              }
+            // Safariでのメモリ問題を防ぐため、適切なサイズに制限
+            const maxWidth = Math.min(video.videoWidth, 1280);
+            const maxHeight = Math.min(video.videoHeight, 720);
+            
+            canvas.width = maxWidth;
+            canvas.height = maxHeight;
+            
+            console.log('Canvasサイズを設定しました:', canvas.width, 'x', canvas.height);
+            imageManager.centerOverlay();
+            statusText.textContent = "カメラ準備完了";
+            statusDot.style.background = "#4caf50";
+            
+            // Safariでのパフォーマンス向上のため、requestAnimationFrameを最適化
+            if (!window.isDrawing) {
+              window.isDrawing = true;
+              draw();
             }
-            
-            // Safari対応のイベントリスナー
-            video.addEventListener('loadedmetadata', setCanvasSize, { once: true });
-            video.addEventListener('canplay', setCanvasSize, { once: true });
-            
-            // フォールバック
-            setTimeout(setCanvasSize, 1000);
-            
-          } catch (error) {
-            console.error('ビデオ設定エラー:', error);
-            statusText.textContent = "ビデオ設定エラー";
-            statusDot.style.background = "#f44336";
           }
-        })
-        .catch(err => {
-          console.error('カメラエラー:', err);
-          statusText.textContent = "カメラエラー";
-          statusDot.style.background = "#f44336";
-          
-          let errorMessage = "カメラの使用許可が必要です。";
-          if (err.name === 'NotAllowedError') {
-            errorMessage += "\n\nSafariの場合:\n1. Safari > 環境設定 > プライバシー\n2. カメラの許可を確認してください。";
-          } else if (err.name === 'NotFoundError') {
-            errorMessage += "\n\nカメラが見つかりません。";
-          } else if (err.name === 'NotSupportedError') {
-            errorMessage += "\n\nお使いのブラウザはカメラ機能に対応していません。";
-          }
-          
-          alert(errorMessage + "\n\nエラー詳細: " + err.message);
-        });
+        };
+        
+        // 複数のイベントリスナーを設定
+        video.addEventListener('loadedmetadata', setCanvasSize, { once: true });
+        video.addEventListener('canplay', setCanvasSize, { once: true });
+        video.addEventListener('loadeddata', setCanvasSize, { once: true });
+        video.addEventListener('play', setCanvasSize, { once: true });
+        
+        // Safariでの確実な起動のため、複数のタイミングで試行
+        setTimeout(setCanvasSize, 500);
+        setTimeout(setCanvasSize, 1000);
+        setTimeout(setCanvasSize, 2000);
+        
+        // ビデオの再生を強制
+        try {
+          await video.play();
+          console.log('ビデオの再生を開始しました');
+        } catch (playError) {
+          console.warn('ビデオの自動再生に失敗:', playError);
+          // ユーザーインタラクション後に再生を試行
+          document.addEventListener('click', () => {
+            video.play().catch(e => console.warn('手動再生にも失敗:', e));
+          }, { once: true });
+        }
+        
+      } catch (err) {
+        console.error('カメラエラー:', err);
+        statusText.textContent = "カメラエラー";
+        statusDot.style.background = "#f44336";
+        
+        let errorMessage = "カメラの使用許可が必要です。";
+        if (err.name === 'NotAllowedError') {
+          errorMessage += "\n\nSafariの場合:\n1. Safari > 環境設定 > プライバシー\n2. カメラの許可を確認してください。";
+        } else if (err.name === 'NotFoundError') {
+          errorMessage += "\n\nカメラが見つかりません。";
+        } else if (err.name === 'NotSupportedError') {
+          errorMessage += "\n\nお使いのブラウザはカメラ機能に対応していません。";
+        } else if (err.name === 'NotReadableError') {
+          errorMessage += "\n\nカメラが他のアプリで使用中です。";
+        }
+        
+        alert(errorMessage + "\n\nエラー詳細: " + err.message);
+      }
     }
     function draw() {
       try {
@@ -625,8 +647,17 @@
           return;
         }
         
+        // Safariでのパフォーマンス向上のため、描画を最適化
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // ビデオが再生中かチェック
+        if (!video.paused && !video.ended) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        } else {
+          // ビデオが停止している場合、再開を試行
+          console.log('ビデオが停止中、再開を試行...');
+          video.play().catch(e => console.warn('ビデオ再開に失敗:', e));
+        }
         
         // 画像の描画
         const currentImage = imageManager.getCurrentImage();
@@ -734,7 +765,27 @@
     // ページ読み込み完了後に初期化
     window.addEventListener('load', () => {
       console.log('ページが読み込まれました');
-      setupCamera();
+      // Safariではユーザーインタラクション後にカメラを起動
+      if (navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')) {
+        console.log('Safari検出: ユーザーインタラクション後にカメラを起動');
+        document.addEventListener('click', () => {
+          if (!window.cameraInitialized) {
+            window.cameraInitialized = true;
+            setupCamera();
+          }
+        }, { once: true });
+        
+        // タッチイベントでも対応
+        document.addEventListener('touchstart', () => {
+          if (!window.cameraInitialized) {
+            window.cameraInitialized = true;
+            setupCamera();
+          }
+        }, { once: true });
+      } else {
+        // 他のブラウザでは即座に起動
+        setupCamera();
+      }
     });
     
     // ページが非表示になった時の処理（Safari対応）
