@@ -372,7 +372,7 @@
   <canvas id="canvas"></canvas>
   <div id="controls">
     <div class="slider-wrap">
-      <input type="range" id="scaleSlider" min="0.1" max="2.0" step="0.05" value="0.8">
+      <input type="range" id="scaleSlider" min="0.1" max="2.0" step="0.05" value="1.0">
     </div>
     <div class="btns">
       <button type="button" class="btn" id="captureBtn" title="写真を保存" aria-label="写真を保存"><i class="fa-solid fa-camera"></i></button>
@@ -396,7 +396,7 @@
         this.uniformType = "girl";
         this.overlayX = 0;
         this.overlayY = 0;
-        this.scale = 0.8; // デフォルトスケールを0.8に変更（新しい画像サイズに合わせて調整）
+        this.scale = 1.0; // デフォルトスケールを1.0に変更（余白修正後の画像サイズに合わせて調整）
         this.isDragging = false;
         this.dragOffsetX = 0;
         this.dragOffsetY = 0;
@@ -435,20 +435,20 @@
       // フォールバック用の仮想画像を作成
       createFallbackImage(name) {
         const canvas = document.createElement('canvas');
-        canvas.width = 200; // 新しい画像サイズに合わせて調整
-        canvas.height = 300; // アスペクト比を保持
+        canvas.width = 250; // 余白修正後の画像サイズに合わせて調整
+        canvas.height = 350; // アスペクト比を保持
         const ctx = canvas.getContext('2d');
         
         // 背景色
         const bgColor = name === 'girl' ? '#ff69b4' : '#4169e1';
         ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, 200, 300);
+        ctx.fillRect(0, 0, 250, 350);
         
         // テキスト
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 16px Arial'; // フォントサイズも調整
+        ctx.font = 'bold 18px Arial'; // フォントサイズも調整
         ctx.textAlign = 'center';
-        ctx.fillText(name === 'girl' ? '女子制服' : '男子制服', 100, 150);
+        ctx.fillText(name === 'girl' ? '女子制服' : '男子制服', 125, 175);
         
         // Canvasを画像に変換
         const img = new Image();
