@@ -264,11 +264,43 @@
         });
       }
       
+      // 複数のパスを試す画像読み込み
+      async loadImageWithFallback(name, paths) {
+        for (let i = 0; i < paths.length; i++) {
+          try {
+            const img = await this.loadImage(name, paths[i]);
+            return img;
+          } catch (error) {
+            console.warn(`パス ${paths[i]} での読み込みに失敗、次のパスを試行:`, error);
+            if (i === paths.length - 1) {
+              throw error; // 最後のパスでも失敗した場合
+            }
+          }
+        }
+      }
+      
       async loadAllImages() {
         try {
+          // 複数のパスを試す
+          const girlPaths = [
+            'girl.png',
+            './girl.png',
+            '/girl.png',
+            window.location.pathname.replace(/\/[^\/]*$/, '/') + 'girl.png'
+          ];
+          
+          const boyPaths = [
+            'boy.png',
+            './boy.png',
+            '/boy.png',
+            window.location.pathname.replace(/\/[^\/]*$/, '/') + 'boy.png'
+          ];
+          
+          console.log('画像パスを試行:', { girlPaths, boyPaths });
+          
           await Promise.all([
-            this.loadImage('girl', 'girl.png'),
-            this.loadImage('boy', 'boy.png')
+            this.loadImageWithFallback('girl', girlPaths),
+            this.loadImageWithFallback('boy', boyPaths)
           ]);
           return true;
         } catch (error) {
@@ -541,7 +573,8 @@
     
     // フォールバック: 画像が読み込まれない場合の処理
     setTimeout(() => {
-      if (!overlayImg.complete || overlayImg.naturalWidth === 0) {
+      const currentImage = imageManager.getCurrentImage();
+      if (!currentImage) {
         console.warn('画像の読み込みがタイムアウトしました');
         statusText.textContent = "画像読み込みタイムアウト";
         statusDot.style.background = "#ff9800";
