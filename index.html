@@ -348,7 +348,7 @@
   <div id="controls">
     <div class="slider-wrap">
       <i class="fa-solid fa-arrows-up-down-left-right"></i> サイズ調整
-      <input type="range" id="scaleSlider" min="0.2" max="1.5" step="0.01" value="0.6">
+      <input type="range" id="scaleSlider" min="0.1" max="2.0" step="0.05" value="0.8">
     </div>
     <div class="btns">
       <button type="button" class="btn" id="captureBtn" title="写真を保存" aria-label="写真を保存"><i class="fa-solid fa-camera"></i></button>
@@ -372,7 +372,7 @@
         this.uniformType = "girl";
         this.overlayX = 0;
         this.overlayY = 0;
-        this.scale = 0.6; // デフォルトスケールを0.6に変更
+        this.scale = 0.8; // デフォルトスケールを0.8に変更（新しい画像サイズに合わせて調整）
         this.isDragging = false;
         this.dragOffsetX = 0;
         this.dragOffsetY = 0;
@@ -409,20 +409,20 @@
       // フォールバック用の仮想画像を作成
       createFallbackImage(name) {
         const canvas = document.createElement('canvas');
-        canvas.width = 150; // サイズを小さく
-        canvas.height = 225; // アスペクト比を保持
+        canvas.width = 200; // 新しい画像サイズに合わせて調整
+        canvas.height = 300; // アスペクト比を保持
         const ctx = canvas.getContext('2d');
         
         // 背景色
         const bgColor = name === 'girl' ? '#ff69b4' : '#4169e1';
         ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, 150, 225);
+        ctx.fillRect(0, 0, 200, 300);
         
         // テキスト
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 14px Arial'; // フォントサイズも調整
+        ctx.font = 'bold 16px Arial'; // フォントサイズも調整
         ctx.textAlign = 'center';
-        ctx.fillText(name === 'girl' ? '女子制服' : '男子制服', 75, 112);
+        ctx.fillText(name === 'girl' ? '女子制服' : '男子制服', 100, 150);
         
         // Canvasを画像に変換
         const img = new Image();
@@ -508,9 +508,20 @@
         
         const imgWidth = this.currentImage.width * this.scale;
         const imgHeight = this.currentImage.height * this.scale;
-        this.overlayX = (canvas.width - imgWidth) / 2;
-        this.overlayY = (canvas.height - imgHeight) / 2;
-        console.log('画像を中央に配置:', { imgWidth, imgHeight, overlayX: this.overlayX, overlayY: this.overlayY });
+        
+        // 画像が画面からはみ出さないように調整
+        const maxX = Math.max(0, canvas.width - imgWidth);
+        const maxY = Math.max(0, canvas.height - imgHeight);
+        
+        this.overlayX = Math.max(0, Math.min(maxX, (canvas.width - imgWidth) / 2));
+        this.overlayY = Math.max(0, Math.min(maxY, (canvas.height - imgHeight) / 2));
+        
+        console.log('画像を中央に配置:', { 
+          originalSize: { width: this.currentImage.width, height: this.currentImage.height },
+          scaledSize: { width: imgWidth, height: imgHeight },
+          position: { x: this.overlayX, y: this.overlayY },
+          canvasSize: { width: canvas.width, height: canvas.height }
+        });
       }
       
       getCurrentImage() {
@@ -721,8 +732,22 @@
     function moveDrag(e) {
       if (imageManager.isDragging) {
         const { x, y } = getPointerPos(e);
-        imageManager.overlayX = x - imageManager.dragOffsetX;
-        imageManager.overlayY = y - imageManager.dragOffsetY;
+        const newX = x - imageManager.dragOffsetX;
+        const newY = y - imageManager.dragOffsetY;
+        
+        // 画像が画面外に出ないように制限
+        const currentImage = imageManager.getCurrentImage();
+        if (currentImage) {
+          const imgWidth = currentImage.width * imageManager.scale;
+          const imgHeight = currentImage.height * imageManager.scale;
+          
+          imageManager.overlayX = Math.max(0, Math.min(newX, canvas.width - imgWidth));
+          imageManager.overlayY = Math.max(0, Math.min(newY, canvas.height - imgHeight));
+        } else {
+          imageManager.overlayX = newX;
+          imageManager.overlayY = newY;
+        }
+        
         e.preventDefault();
       }
     }
