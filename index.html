@@ -100,11 +100,35 @@
       justify-content: space-between;
     }
     #scaleSlider {
-      width: 120px;
+      width: 200px;
       accent-color: #ffd700;
-      height: 6px;
-      border-radius: 3px;
+      height: 12px;
+      border-radius: 6px;
       background: rgba(255,255,255,0.2);
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+    
+    #scaleSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffd700;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    #scaleSlider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffd700;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     .btns {
       display: flex;
@@ -176,8 +200,8 @@
         gap: 10px;
       }
       #scaleSlider { 
-        width: 100px; 
-        height: 8px;
+        width: 160px; 
+        height: 10px;
       }
       
       .btns { 
@@ -223,8 +247,8 @@
         gap: 8px;
       }
       #scaleSlider { 
-        width: 80px; 
-        height: 6px;
+        width: 140px; 
+        height: 8px;
       }
       
       .btns { 
@@ -283,8 +307,8 @@
         gap: 8px;
       }
       #scaleSlider { 
-        width: 80px; 
-        height: 6px;
+        width: 140px; 
+        height: 8px;
       }
       
       .btns { 
@@ -322,7 +346,8 @@
         font-size: 0.75em;
       }
       #scaleSlider {
-        width: 70px;
+        width: 120px;
+        height: 8px;
       }
       
       .btn {
@@ -347,7 +372,6 @@
   <canvas id="canvas"></canvas>
   <div id="controls">
     <div class="slider-wrap">
-      <i class="fa-solid fa-arrows-up-down-left-right"></i> サイズ調整
       <input type="range" id="scaleSlider" min="0.1" max="2.0" step="0.05" value="0.8">
     </div>
     <div class="btns">
