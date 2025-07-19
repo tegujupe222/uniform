@@ -425,8 +425,10 @@
             reject(new Error(`Failed to load ${name}`));
           };
           
-          // キャッシュバスティング
-          img.src = src + '?v=' + Date.now();
+          // 強力なキャッシュバスティング
+          const timestamp = Date.now();
+          const random = Math.random().toString(36).substring(7);
+          img.src = src + '?v=' + timestamp + '&r=' + random;
         });
       }
       
@@ -492,7 +494,16 @@
             '/girl.png',
             baseUrl + 'girl.png',
             window.location.origin + '/girl.png',
-            window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'girl.png'
+            window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'girl.png',
+            // 新しい画像ファイル名のパターンも試行
+            'uniform_girl.png',
+            './uniform_girl.png',
+            '/uniform_girl.png',
+            baseUrl + 'uniform_girl.png',
+            'girl_uniform.png',
+            './girl_uniform.png',
+            '/girl_uniform.png',
+            baseUrl + 'girl_uniform.png'
           ];
           
           const boyPaths = [
@@ -501,7 +512,16 @@
             '/boy.png',
             baseUrl + 'boy.png',
             window.location.origin + '/boy.png',
-            window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'boy.png'
+            window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'boy.png',
+            // 新しい画像ファイル名のパターンも試行
+            'uniform_boy.png',
+            './uniform_boy.png',
+            '/uniform_boy.png',
+            baseUrl + 'uniform_boy.png',
+            'boy_uniform.png',
+            './boy_uniform.png',
+            '/boy_uniform.png',
+            baseUrl + 'boy_uniform.png'
           ];
           
           console.log('現在のURL:', currentUrl);
@@ -559,18 +579,11 @@
       statusText.textContent = "カメラ起動中...";
       statusDot.style.background = "#ff9800";
       
-      // まず画像を読み込み
-      console.log('画像の読み込みを開始...');
-      const imagesLoaded = await imageManager.loadAllImages();
+      // 画像読み込みとカメラ起動を並列化
+      console.log('画像の読み込みとカメラ起動を並列実行...');
+      const imageLoadPromise = imageManager.loadAllImages();
       
-      if (!imagesLoaded) {
-        statusText.textContent = "画像読み込みエラー";
-        statusDot.style.background = "#f44336";
-        alert("制服画像の読み込みに失敗しました。ページを再読み込みしてください。");
-        return;
-      }
-      
-      // Safari対応のカメラ設定（より柔軟な設定）
+      // カメラ設定
       const constraints = { 
         video: { 
           facingMode: { ideal: "environment" },
@@ -594,7 +607,16 @@
       }
       
       try {
-        const stream = await getUserMedia.call(navigator.mediaDevices || navigator, constraints);
+        // カメラと画像を並列で起動
+        const [stream, imagesLoaded] = await Promise.all([
+          getUserMedia.call(navigator.mediaDevices || navigator, constraints),
+          imageLoadPromise
+        ]);
+        
+        if (!imagesLoaded) {
+          console.warn('画像の読み込みに失敗しましたが、カメラは起動します');
+        }
+        
         videoStream = stream;
         video.srcObject = stream;
         
@@ -867,8 +889,14 @@
         console.warn('画像の読み込みがタイムアウトしました');
         statusText.textContent = "画像読み込みタイムアウト";
         statusDot.style.background = "#ff9800";
+        
+        // 強制的に画像を再読み込み
+        console.log('画像の強制再読み込みを実行...');
+        imageManager.loadAllImages().then(() => {
+          console.log('画像の再読み込みが完了しました');
+        });
       }
-    }, 5000);
+    }, 3000); // タイムアウトを3秒に短縮
   </script>
 </body>
 </html> 
