@@ -53,6 +53,12 @@
       position: absolute;
       top: 0; left: 0;
       z-index: 1;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
     }
     #controls {
       position: fixed;
@@ -112,10 +118,78 @@
     }
     #toggleBtn i { font-size: 1.1em; }
     @media (max-width: 600px) {
-      #controls { padding: 10px 8vw 8px 8vw; }
+      .header { padding: 10px 16px; }
+      .header .title { font-size: 1rem; }
+      .header .status { font-size: 0.85em; }
+      #controls { 
+        padding: 12px 6vw 8px 6vw; 
+        bottom: 20px;
+        border-radius: 16px;
+      }
+      .slider-wrap { font-size: 0.9em; }
+      #scaleSlider { width: 120px; }
+      .btns { gap: 12px; }
+      .btn { 
+        width: 52px; 
+        height: 52px; 
+        font-size: 1.2em; 
+      }
+      #toggleBtn { 
+        height: 40px; 
+        font-size: 0.9em; 
+        min-width: 100px;
+        padding: 0 16px;
+      }
+    }
+    
+    @media (max-width: 400px) {
+      .header { padding: 8px 12px; }
+      .header .title { font-size: 0.9rem; }
+      #controls { 
+        padding: 10px 4vw 6px 4vw; 
+        bottom: 16px;
+      }
+      .slider-wrap { font-size: 0.85em; }
       #scaleSlider { width: 100px; }
-      .btn { width: 48px; height: 48px; font-size: 1.1em; }
-      #toggleBtn { height: 36px; font-size: 0.95em; min-width: 90px; }
+      .btn { 
+        width: 48px; 
+        height: 48px; 
+        font-size: 1.1em; 
+      }
+      #toggleBtn { 
+        height: 36px; 
+        font-size: 0.85em; 
+        min-width: 90px;
+        padding: 0 12px;
+      }
+    }
+    
+    /* 縦向きスマホ用 */
+    @media (max-width: 600px) and (orientation: portrait) {
+      #canvas {
+        width: 100vw;
+        height: 100vh;
+      }
+    }
+    
+    /* 横向きスマホ用 */
+    @media (max-width: 900px) and (orientation: landscape) {
+      #controls {
+        bottom: 16px;
+        padding: 8px 16px 6px 16px;
+      }
+      .slider-wrap { font-size: 0.85em; }
+      #scaleSlider { width: 100px; }
+      .btn { 
+        width: 44px; 
+        height: 44px; 
+        font-size: 1em; 
+      }
+      #toggleBtn { 
+        height: 32px; 
+        font-size: 0.8em; 
+        min-width: 80px;
+      }
     }
   </style>
 </head>
@@ -147,13 +221,34 @@
     const statusText = document.getElementById("statusText");
     let overlayImg = new Image();
     let uniformType = "girl";
-    overlayImg.src = "girl.png";
     let overlayX = 0, overlayY = 0, scale = 1, isDragging = false, dragOffsetX = 0, dragOffsetY = 0;
+    
+    // 画像読み込みエラーハンドリング
+    overlayImg.onerror = function() {
+      console.error('画像の読み込みに失敗しました:', overlayImg.src);
+      statusText.textContent = "画像読み込みエラー";
+      statusDot.style.background = "#f44336";
+    };
+    
+    overlayImg.onload = function() {
+      console.log('画像が正常に読み込まれました:', overlayImg.src);
+      if (canvas.width && canvas.height) {
+        centerOverlay();
+      }
+    };
+    
+    // 初期画像を読み込み
+    overlayImg.src = "girl.png";
     function centerOverlay() {
+      if (!overlayImg.complete || overlayImg.naturalWidth === 0) {
+        console.log('画像がまだ読み込まれていません');
+        return;
+      }
       const imgWidth = overlayImg.width * scale;
       const imgHeight = overlayImg.height * scale;
       overlayX = (canvas.width - imgWidth) / 2;
       overlayY = (canvas.height - imgHeight) / 2;
+      console.log('画像を中央に配置しました:', { imgWidth, imgHeight, overlayX, overlayY });
     }
     function setupCamera() {
       statusText.textContent = "カメラ起動中...";
@@ -166,7 +261,7 @@
             if (video.videoWidth && video.videoHeight) {
               canvas.width = video.videoWidth;
               canvas.height = video.videoHeight;
-              overlayImg.onload = centerOverlay;
+              console.log('Canvasサイズを設定しました:', canvas.width, 'x', canvas.height);
               centerOverlay();
               statusText.textContent = "カメラ準備完了";
               statusDot.style.background = "#4caf50";
@@ -185,11 +280,21 @@
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // 画像の描画
       if (overlayImg.complete && overlayImg.naturalWidth > 0) {
         const imgWidth = overlayImg.width * scale;
         const imgHeight = overlayImg.height * scale;
         ctx.drawImage(overlayImg, overlayX, overlayY, imgWidth, imgHeight);
+      } else {
+        // 画像が読み込まれていない場合のデバッグ表示
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+        ctx.fillRect(overlayX, overlayY, 100, 100);
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.fillText('画像読み込み中...', overlayX, overlayY + 50);
       }
+      
       requestAnimationFrame(draw);
     }
     scaleSlider.addEventListener("input", () => {
@@ -245,7 +350,10 @@
     });
     toggleBtn.addEventListener("click", () => {
       uniformType = uniformType === "girl" ? "boy" : "girl";
-      overlayImg.src = uniformType === "girl" ? "girl.png" : "boy.png";
+      const newImageSrc = uniformType === "girl" ? "girl.png" : "boy.png";
+      console.log('制服を切り替え中:', newImageSrc);
+      
+      overlayImg.src = newImageSrc;
       const icon = toggleBtn.querySelector("i");
       const text = toggleBtn.querySelector("span");
       if (uniformType === "girl") {
@@ -255,9 +363,21 @@
         icon.className = "fa-solid fa-venus";
         text.textContent = "女子制服に切り替え";
       }
-      overlayImg.onload = centerOverlay;
     });
-    setupCamera();
+    // ページ読み込み完了後に初期化
+    window.addEventListener('load', () => {
+      console.log('ページが読み込まれました');
+      setupCamera();
+    });
+    
+    // フォールバック: 画像が読み込まれない場合の処理
+    setTimeout(() => {
+      if (!overlayImg.complete || overlayImg.naturalWidth === 0) {
+        console.warn('画像の読み込みがタイムアウトしました');
+        statusText.textContent = "画像読み込みタイムアウト";
+        statusDot.style.background = "#ff9800";
+      }
+    }, 5000);
   </script>
 </body>
 </html> 
