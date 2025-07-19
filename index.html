@@ -222,63 +222,100 @@
     const toggleBtn = document.getElementById("toggleBtn");
     const statusDot = document.getElementById("statusDot");
     const statusText = document.getElementById("statusText");
-    let overlayImg = new Image();
-    let uniformType = "girl";
-    let overlayX = 0, overlayY = 0, scale = 1, isDragging = false, dragOffsetX = 0, dragOffsetY = 0;
-    let imageLoadAttempts = 0;
-    const maxImageLoadAttempts = 3;
-    
-    // 画像読み込みエラーハンドリング
-    overlayImg.onerror = function() {
-      console.error('画像の読み込みに失敗しました:', overlayImg.src);
-      imageLoadAttempts++;
+    // 画像管理クラス
+    class ImageManager {
+      constructor() {
+        this.images = {};
+        this.currentImage = null;
+        this.uniformType = "girl";
+        this.overlayX = 0;
+        this.overlayY = 0;
+        this.scale = 1;
+        this.isDragging = false;
+        this.dragOffsetX = 0;
+        this.dragOffsetY = 0;
+        this.loadedImages = 0;
+        this.totalImages = 2;
+      }
       
-      if (imageLoadAttempts < maxImageLoadAttempts) {
-        console.log(`画像読み込み再試行 ${imageLoadAttempts}/${maxImageLoadAttempts}`);
-        setTimeout(() => {
-          overlayImg.src = overlayImg.src + '?retry=' + Date.now();
-        }, 1000);
-      } else {
-        statusText.textContent = "画像読み込みエラー";
-        statusDot.style.background = "#f44336";
-        console.error('画像の読み込みが最大試行回数に達しました');
+      loadImage(name, src) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          
+          img.onload = () => {
+            console.log(`画像 ${name} が読み込まれました:`, src);
+            this.images[name] = img;
+            this.loadedImages++;
+            
+            if (this.loadedImages === this.totalImages) {
+              console.log('すべての画像が読み込まれました');
+              this.setCurrentImage('girl');
+            }
+            resolve(img);
+          };
+          
+          img.onerror = () => {
+            console.error(`画像 ${name} の読み込みに失敗:`, src);
+            reject(new Error(`Failed to load ${name}`));
+          };
+          
+          // キャッシュバスティング
+          img.src = src + '?v=' + Date.now();
+        });
       }
-    };
-    
-    overlayImg.onload = function() {
-      console.log('画像が正常に読み込まれました:', overlayImg.src);
-      imageLoadAttempts = 0;
-      if (canvas.width && canvas.height) {
-        centerOverlay();
+      
+      async loadAllImages() {
+        try {
+          await Promise.all([
+            this.loadImage('girl', 'girl.png'),
+            this.loadImage('boy', 'boy.png')
+          ]);
+          return true;
+        } catch (error) {
+          console.error('画像読み込みエラー:', error);
+          return false;
+        }
       }
-    };
-    
-    // 画像のプリロード
-    function preloadImages() {
-      const images = ['girl.png', 'boy.png'];
-      images.forEach(src => {
-        const img = new Image();
-        img.src = src;
-      });
+      
+      setCurrentImage(type) {
+        this.uniformType = type;
+        this.currentImage = this.images[type];
+        if (this.currentImage && canvas.width && canvas.height) {
+          this.centerOverlay();
+        }
+      }
+      
+      centerOverlay() {
+        if (!this.currentImage) return;
+        
+        const imgWidth = this.currentImage.width * this.scale;
+        const imgHeight = this.currentImage.height * this.scale;
+        this.overlayX = (canvas.width - imgWidth) / 2;
+        this.overlayY = (canvas.height - imgHeight) / 2;
+        console.log('画像を中央に配置:', { imgWidth, imgHeight, overlayX: this.overlayX, overlayY: this.overlayY });
+      }
+      
+      getCurrentImage() {
+        return this.currentImage;
+      }
     }
     
-    // 初期画像を読み込み
-    overlayImg.src = "girl.png";
-    preloadImages();
-    function centerOverlay() {
-      if (!overlayImg.complete || overlayImg.naturalWidth === 0) {
-        console.log('画像がまだ読み込まれていません');
-        return;
-      }
-      const imgWidth = overlayImg.width * scale;
-      const imgHeight = overlayImg.height * scale;
-      overlayX = (canvas.width - imgWidth) / 2;
-      overlayY = (canvas.height - imgHeight) / 2;
-      console.log('画像を中央に配置しました:', { imgWidth, imgHeight, overlayX, overlayY });
-    }
-    function setupCamera() {
+    const imageManager = new ImageManager();
+
+    async function setupCamera() {
       statusText.textContent = "カメラ起動中...";
       statusDot.style.background = "#ff9800";
+      
+      // まず画像を読み込み
+      console.log('画像の読み込みを開始...');
+      const imagesLoaded = await imageManager.loadAllImages();
+      
+      if (!imagesLoaded) {
+        statusText.textContent = "画像読み込みエラー";
+        statusDot.style.background = "#f44336";
+        alert("制服画像の読み込みに失敗しました。ページを再読み込みしてください。");
+        return;
+      }
       
       // Safari対応のカメラ設定
       const constraints = { 
@@ -318,7 +355,7 @@
                 canvas.height = maxHeight;
                 
                 console.log('Canvasサイズを設定しました:', canvas.width, 'x', canvas.height);
-                centerOverlay();
+                imageManager.centerOverlay();
                 statusText.textContent = "カメラ準備完了";
                 statusDot.style.background = "#4caf50";
                 
@@ -364,7 +401,9 @@
       try {
         // Safariでのメモリリークを防ぐため、エラーハンドリングを追加
         if (!video.videoWidth || !video.videoHeight) {
-          requestAnimationFrame(draw);
+          if (window.isDrawing) {
+            requestAnimationFrame(draw);
+          }
           return;
         }
         
@@ -372,17 +411,18 @@
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
         // 画像の描画
-        if (overlayImg.complete && overlayImg.naturalWidth > 0) {
-          const imgWidth = overlayImg.width * scale;
-          const imgHeight = overlayImg.height * scale;
-          ctx.drawImage(overlayImg, overlayX, overlayY, imgWidth, imgHeight);
+        const currentImage = imageManager.getCurrentImage();
+        if (currentImage) {
+          const imgWidth = currentImage.width * imageManager.scale;
+          const imgHeight = currentImage.height * imageManager.scale;
+          ctx.drawImage(currentImage, imageManager.overlayX, imageManager.overlayY, imgWidth, imgHeight);
         } else {
           // 画像が読み込まれていない場合のデバッグ表示
           ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-          ctx.fillRect(overlayX, overlayY, 100, 100);
+          ctx.fillRect(imageManager.overlayX, imageManager.overlayY, 100, 100);
           ctx.fillStyle = 'white';
           ctx.font = '16px Arial';
-          ctx.fillText('画像読み込み中...', overlayX, overlayY + 50);
+          ctx.fillText('画像読み込み中...', imageManager.overlayX, imageManager.overlayY + 50);
         }
         
         // Safariでのパフォーマンス向上のため、フレームレートを制限
@@ -396,12 +436,17 @@
       }
     }
     scaleSlider.addEventListener("input", () => {
-      scale = parseFloat(scaleSlider.value);
+      imageManager.scale = parseFloat(scaleSlider.value);
+      imageManager.centerOverlay();
     });
     function isOnOverlay(x, y) {
-      const imgWidth = overlayImg.width * scale;
-      const imgHeight = overlayImg.height * scale;
-      return x >= overlayX && x <= overlayX + imgWidth && y >= overlayY && y <= overlayY + imgHeight;
+      const currentImage = imageManager.getCurrentImage();
+      if (!currentImage) return false;
+      
+      const imgWidth = currentImage.width * imageManager.scale;
+      const imgHeight = currentImage.height * imageManager.scale;
+      return x >= imageManager.overlayX && x <= imageManager.overlayX + imgWidth && 
+             y >= imageManager.overlayY && y <= imageManager.overlayY + imgHeight;
     }
     // Pointer & Touch両対応
     function getPointerPos(e) {
@@ -415,21 +460,21 @@
     function startDrag(e) {
       const { x, y } = getPointerPos(e);
       if (isOnOverlay(x, y)) {
-        isDragging = true;
-        dragOffsetX = x - overlayX;
-        dragOffsetY = y - overlayY;
+        imageManager.isDragging = true;
+        imageManager.dragOffsetX = x - imageManager.overlayX;
+        imageManager.dragOffsetY = y - imageManager.overlayY;
         e.preventDefault();
       }
     }
     function moveDrag(e) {
-      if (isDragging) {
+      if (imageManager.isDragging) {
         const { x, y } = getPointerPos(e);
-        overlayX = x - dragOffsetX;
-        overlayY = y - dragOffsetY;
+        imageManager.overlayX = x - imageManager.dragOffsetX;
+        imageManager.overlayY = y - imageManager.dragOffsetY;
         e.preventDefault();
       }
     }
-    function endDrag() { isDragging = false; }
+    function endDrag() { imageManager.isDragging = false; }
     canvas.addEventListener("pointerdown", startDrag);
     canvas.addEventListener("pointermove", moveDrag);
     canvas.addEventListener("pointerup", endDrag);
@@ -447,14 +492,14 @@
       document.body.removeChild(a);
     });
     toggleBtn.addEventListener("click", () => {
-      uniformType = uniformType === "girl" ? "boy" : "girl";
-      const newImageSrc = uniformType === "girl" ? "girl.png" : "boy.png";
-      console.log('制服を切り替え中:', newImageSrc);
+      const newType = imageManager.uniformType === "girl" ? "boy" : "girl";
+      console.log('制服を切り替え中:', newType);
       
-      overlayImg.src = newImageSrc;
+      imageManager.setCurrentImage(newType);
+      
       const icon = toggleBtn.querySelector("i");
       const text = toggleBtn.querySelector("span");
-      if (uniformType === "girl") {
+      if (imageManager.uniformType === "girl") {
         icon.className = "fa-solid fa-mars";
         text.textContent = "男子制服に切り替え";
       } else {
