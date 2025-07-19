@@ -1,0 +1,8 @@
+{
+  "extends": ["html-validate:recommended"],
+  "rules": {
+    "no-autoplay": "off",
+    "no-implicit-button-type": "error",
+    "text-content": "error"
+  }
+} 
